@@ -911,3 +911,74 @@ button:disabled {
   flex: 0 0 auto;
   width: 140px;
 }
+
+/* ---------- account & sign-in ---------- */
+.settings-group--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-row--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.account-email {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.sync-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good-text);
+}
+
+.sync-status--syncing .sync-status__dot,
+.sync-status--idle .sync-status__dot {
+  background: var(--accent);
+}
+
+.sync-status--offline .sync-status__dot {
+  background: var(--muted);
+}
+
+.sync-status--error .sync-status__dot {
+  background: var(--critical);
+}
+
+.sheet__lead {
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+.text-input--code {
+  font-size: 24px;
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-error {
+  color: var(--critical);
+  font-size: 14px;
+}
+
+.sheet__links {
+  display: flex;
+  justify-content: space-between;
+}

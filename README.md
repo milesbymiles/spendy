@@ -28,6 +28,18 @@ The installed app picks up the new version the next time it's opened.
 Install requires HTTPS, so the LAN URL from `npm run dev` is only for trying the UI.
 On iOS the home-screen app has its own storage, separate from the Safari tab.
 
+## Accounts & sync (Supabase)
+
+spendy works fully offline without an account. Signing in (email + one-time code) syncs expenses
+to Supabase so they're backed up and shared across devices. Data is local-first: changes are saved
+on the device immediately and pushed/pulled in the background (only rows changed since the last sync).
+
+Setup:
+1. Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL editor (tables + Row Level Security).
+2. Authentication → Emails → make the **Magic Link** and **Confirm signup** templates include `{{ .Token }}`.
+3. Put the project URL and publishable/anon key in [src/supabase-config.ts](src/supabase-config.ts).
+   Both are public by design; RLS keeps each user's rows private. Never use the secret/service_role key.
+
 ## Native iOS app (optional)
 
 `npm run ios` builds, syncs into the Capacitor project in `ios/`, and opens Xcode (Xcode required).

@@ -1,10 +1,12 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { AuthSheet } from '../components/AuthSheet'
 import { CATEGORY } from '../categories'
+import { sanitize } from '../data'
 import { centsToInput, parseAmount } from '../format'
 import { isNative } from '../native'
-import { sanitize, useStore } from '../store'
+import { useStore, type SyncStatus } from '../store'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -53,6 +55,14 @@ async function saveFile(name: string, type: string, contents: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+function syncLabel(status: SyncStatus, pending: number) {
+  if (status === 'syncing') return 'Syncing…'
+  if (status === 'offline') return pending ? `Offline · ${pending} change${pending === 1 ? '' : 's'} waiting` : 'Offline'
+  if (status === 'error') return "Couldn't sync · will retry"
+  if (pending) return `${pending} change${pending === 1 ? '' : 's'} waiting to sync`
+  return 'All changes synced'
+}
+
 const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
 
 export function Settings({ notify }: { notify: (message: string) => void }) {
@@ -60,6 +70,8 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
   const { settings, expenses } = store
   const [budgetText, setBudgetText] = useState(settings.budget ? centsToInput(settings.budget) : '')
   const [canInstall, setCanInstall] = useState(() => deferredPrompt !== null)
+  const [authOpen, setAuthOpen] = useState(false)
+  const budgetRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const standalone = isNative || isStandalone()
 
@@ -68,6 +80,11 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
     window.addEventListener('beforeinstallprompt', onPrompt)
     return () => window.removeEventListener('beforeinstallprompt', onPrompt)
   }, [])
+
+  // Show budgets that arrive from another device, unless the field is being edited.
+  useEffect(() => {
+    if (document.activeElement !== budgetRef.current) setBudgetText(settings.budget ? centsToInput(settings.budget) : '')
+  }, [settings.budget])
 
   const commitBudget = () => {
     const cents = budgetText.trim() ? parseAmount(budgetText) : null
@@ -108,12 +125,21 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
       const data = sanitize(JSON.parse(await file.text()))
       if (!data) throw new Error('bad file')
       if (!confirm(`Replace your current data with ${data.expenses.length} expenses from this backup?`)) return
-      store.replaceAll(data)
+      store.replaceAll(data.expenses, data.settings)
       setBudgetText(data.settings.budget ? centsToInput(data.settings.budget) : '')
       notify('Backup restored')
     } catch {
       notify("That file isn't a spendy backup")
     }
+  }
+
+  const signOut = async () => {
+    const warning = store.pendingCount
+      ? `${store.pendingCount} change${store.pendingCount === 1 ? " hasn't" : "s haven't"} synced yet and will be lost. `
+      : ''
+    if (!confirm(`${warning}Sign out? Your expenses stay safe in your account and are removed from this device.`)) return
+    await store.signOut()
+    notify('Signed out')
   }
 
   const deleteAll = () => {
@@ -129,11 +155,54 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
         <h1 className="screen__title">Settings</h1>
       </header>
 
+      {store.cloudEnabled && (
+        <>
+          <h2 className="group-title">Account</h2>
+          {!store.authReady ? (
+            <div className="card settings-group settings-group--padded">
+              <p className="hint">Checking your account…</p>
+            </div>
+          ) : store.account ? (
+            <div className="card settings-group">
+              <div className="settings-row settings-row--stack">
+                <span className="account-email">{store.account.email}</span>
+                <span className={`sync-status sync-status--${store.syncStatus}`}>
+                  <span className="sync-status__dot" aria-hidden="true" />
+                  {syncLabel(store.syncStatus, store.pendingCount)}
+                </span>
+              </div>
+              <button
+                className="settings-row settings-row--btn"
+                onClick={store.syncNow}
+                disabled={store.syncStatus === 'syncing'}
+              >
+                Sync now
+              </button>
+              <button className="settings-row settings-row--btn settings-row--danger" onClick={signOut}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="card settings-group settings-group--padded settings-group--stack">
+              <p className="hint">
+                {store.needsSignIn
+                  ? 'You were signed out. Sign in again to keep syncing this device.'
+                  : 'Sign in to back up your expenses and use them on any device.'}
+              </p>
+              <button className="btn btn--primary btn--block" onClick={() => setAuthOpen(true)}>
+                Sign in with email
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       <h2 className="group-title">Budget</h2>
       <div className="card settings-group">
         <label className="settings-row">
           <span>Monthly budget (₹)</span>
           <input
+            ref={budgetRef}
             className="inline-input"
             inputMode="decimal"
             enterKeyHint="done"
@@ -190,9 +259,20 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
       </div>
 
       <p className="footnote">
-        spendy keeps everything on this device. Nothing is uploaded anywhere — back up now and then so you don't lose
-        it.
+        {store.account
+          ? 'Your expenses are saved on this device and synced to your account, so they work offline too.'
+          : "Right now spendy keeps everything on this device only. Sign in, or back up now and then, so you don't lose it."}
       </p>
+
+      {authOpen && (
+        <AuthSheet
+          onClose={() => setAuthOpen(false)}
+          onSignedIn={() => {
+            setAuthOpen(false)
+            notify('Signed in · syncing your expenses')
+          }}
+        />
+      )}
     </main>
   )
 }

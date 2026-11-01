@@ -1,16 +1,38 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ExpenseSheet } from './components/ExpenseSheet'
 import { Icon } from './components/Icon'
 import { TabBar, type Tab } from './components/TabBar'
 import { Toast, type ToastData } from './components/Toast'
-import { monthOf, todayISO } from './format'
+import { isCategoryId, isPaymentMethod } from './categories'
+import { monthOf, parseAmount, todayISO } from './format'
+import { setPrefs } from './prefs'
 import { Home } from './screens/Home'
 import { Settings } from './screens/Settings'
 import { Stats } from './screens/Stats'
 import { useStore } from './store'
 import type { Expense, ExpenseDraft } from './types'
 
-type SheetState = { mode: 'add' } | { mode: 'edit'; expense: Expense } | null
+type SheetState = { mode: 'add'; prefill?: Partial<ExpenseDraft> } | { mode: 'edit'; expense: Expense } | null
+
+/**
+ * Reads an "add expense" deep link: ?add, optionally with amount, note, category and method,
+ * e.g. ./?add&amount=250&note=Zomato&method=upi. Used by the Android home-screen shortcut and
+ * by automations such as iOS Shortcuts.
+ */
+function readAddLink(): Partial<ExpenseDraft> | null {
+  const params = new URLSearchParams(window.location.search)
+  if (!params.has('add')) return null
+  const prefill: Partial<ExpenseDraft> = {}
+  const amount = parseAmount(params.get('amount') ?? '')
+  if (amount) prefill.amount = amount
+  const note = params.get('note')?.trim()
+  if (note) prefill.note = note.slice(0, 80)
+  const category = params.get('category')
+  if (isCategoryId(category)) prefill.category = category
+  const method = params.get('method')
+  if (isPaymentMethod(method)) prefill.method = method
+  return prefill
+}
 
 export default function App() {
   const store = useStore()
@@ -18,6 +40,14 @@ export default function App() {
   const [month, setMonth] = useState(() => monthOf(todayISO()))
   const [sheet, setSheet] = useState<SheetState>(null)
   const [toast, setToast] = useState<ToastData | null>(null)
+
+  useEffect(() => {
+    const prefill = readAddLink()
+    if (!prefill) return
+    setSheet({ mode: 'add', prefill })
+    // Drop the parameters so a reload doesn't open the sheet again.
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   const notify = useCallback((message: string, action?: ToastData['action']) => {
     setToast({ id: Date.now(), message, action })
@@ -35,10 +65,18 @@ export default function App() {
       store.updateExpense(sheet.expense.id, draft)
     } else {
       store.addExpense(draft)
+      setPrefs({ lastCategory: draft.category, lastMethod: draft.method })
     }
     // Jump to the month the expense landed in so it's visible straight away.
     setMonth(monthOf(draft.date))
     setSheet(null)
+  }
+
+  const repeat = (draft: ExpenseDraft) => {
+    store.addExpense(draft)
+    setMonth(monthOf(draft.date))
+    setSheet(null)
+    notify('Added again for today')
   }
 
   const remove = (expense: Expense) => {
@@ -75,8 +113,9 @@ export default function App() {
         <ExpenseSheet
           key={sheet.mode === 'edit' ? sheet.expense.id : 'new'}
           expense={sheet.mode === 'edit' ? sheet.expense : undefined}
-         
+          prefill={sheet.mode === 'add' ? sheet.prefill : undefined}
           onSave={save}
+          onRepeat={sheet.mode === 'edit' ? repeat : undefined}
           onDelete={sheet.mode === 'edit' ? () => remove(sheet.expense) : undefined}
           onClose={closeSheet}
         />

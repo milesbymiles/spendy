@@ -1,5 +1,6 @@
-import { CATEGORY } from '../categories'
+import { methodLabel } from '../categories'
 import { dayLabel, formatMoney } from '../format'
+import { useStore } from '../store'
 import type { Expense } from '../types'
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function ExpenseList({ expenses, onSelect }: Props) {
+  const { categoryOf } = useStore()
   const groups: { date: string; items: Expense[]; total: number }[] = []
   for (const e of expenses) {
     const last = groups[groups.length - 1]
@@ -29,7 +31,8 @@ export function ExpenseList({ expenses, onSelect }: Props) {
           </header>
           <ul className="card expense-list">
             {g.items.map((e) => {
-              const cat = CATEGORY[e.category]
+              const cat = categoryOf(e.category)
+              const sub = [e.note && cat.label, e.method && methodLabel(e.method)].filter(Boolean).join(' · ')
               return (
                 <li key={e.id}>
                   <button className="expense-row" onClick={() => onSelect(e)}>
@@ -38,7 +41,7 @@ export function ExpenseList({ expenses, onSelect }: Props) {
                     </span>
                     <span className="expense-row__text">
                       <span className="expense-row__title">{e.note || cat.label}</span>
-                      {e.note && <span className="expense-row__sub">{cat.label}</span>}
+                      {sub && <span className="expense-row__sub">{sub}</span>}
                     </span>
                     <span className="expense-row__amount">{formatMoney(e.amount)}</span>
                   </button>

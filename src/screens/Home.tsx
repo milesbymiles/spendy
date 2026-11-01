@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { BudgetMeter } from '../components/BudgetMeter'
 import { ExpenseList } from '../components/ExpenseList'
+import { Icon } from '../components/Icon'
 import { MonthSwitcher } from '../components/MonthSwitcher'
 import { formatMoney, monthLabel, monthOf, todayISO } from '../format'
 import { useStore } from '../store'
 import type { Expense } from '../types'
+import { Search } from './Search'
 
 interface Props {
   month: string
@@ -15,15 +18,23 @@ interface Props {
 
 export function Home({ month, onMonthChange, onSelect, onAdd, onOpenSettings }: Props) {
   const { expenses, settings } = useStore()
+  const [searching, setSearching] = useState(false)
   const items = expenses.filter((e) => monthOf(e.date) === month)
   const total = items.reduce((a, e) => a + e.amount, 0)
   const isCurrent = month === monthOf(todayISO())
+
+  if (searching) return <Search onClose={() => setSearching(false)} onSelect={onSelect} />
 
   return (
     <main className="screen">
       <header className="screen__header">
         <h1 className="wordmark">spendy</h1>
-        <MonthSwitcher month={month} onChange={onMonthChange} />
+        <div className="screen__header-actions">
+          <button className="icon-btn" onClick={() => setSearching(true)} aria-label="Search expenses">
+            <Icon name="search" size={20} />
+          </button>
+          <MonthSwitcher month={month} onChange={onMonthChange} />
+        </div>
       </header>
 
       <section className="card summary">

@@ -40,6 +40,12 @@ Setup:
 3. Put the project URL and publishable/anon key in [src/supabase-config.ts](src/supabase-config.ts).
    Both are public by design; RLS keeps each user's rows private. Never use the secret/service_role key.
 
+## Add-expense link
+
+`./?add` opens the add sheet; `amount`, `note`, `category` and `method` (`upi`/`card`/`cash`) pre-fill it,
+e.g. `https://milesbymiles.github.io/spendy/?add&amount=250&note=Zomato&method=upi`.
+The Android home-screen shortcut uses it, and it's the hook for automations like iOS Shortcuts.
+
 ## Native iOS app (optional)
 
 `npm run ios` builds, syncs into the Capacitor project in `ios/`, and opens Xcode (Xcode required).

@@ -1,10 +1,10 @@
-import { CategoryBreakdown } from '../components/CategoryBreakdown'
+import { Breakdown, type BreakdownRow } from '../components/Breakdown'
 import { DailyChart } from '../components/DailyChart'
 import { Icon } from '../components/Icon'
 import { MonthSwitcher } from '../components/MonthSwitcher'
 import { daysInMonth, formatMoney, monthLabel, monthOf, shiftMonth, todayISO } from '../format'
+import { PAYMENT_METHODS } from '../categories'
 import { useStore } from '../store'
-import type { CategoryId } from '../types'
 
 interface Props {
   month: string
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function Stats({ month, onMonthChange }: Props) {
-  const { expenses } = useStore()
+  const { expenses, categoryOf } = useStore()
   const prevMonth = shiftMonth(month, -1)
 
   const items = expenses.filter((e) => monthOf(e.date) === month)
@@ -23,15 +23,20 @@ export function Stats({ month, onMonthChange }: Props) {
   const today = todayISO()
   const elapsed = month === monthOf(today) ? Number(today.slice(8)) : days
   const daily = Array.from({ length: days }, () => 0)
-  const byCat = new Map<CategoryId, { id: CategoryId; amount: number; count: number }>()
+  const byCat = new Map<string, BreakdownRow>()
+  const byMethod = new Map<string, BreakdownRow>()
+  const add = (map: Map<string, BreakdownRow>, row: Omit<BreakdownRow, 'amount'>, amount: number) => {
+    const r = map.get(row.id) ?? { ...row, amount: 0 }
+    r.amount += amount
+    map.set(row.id, r)
+  }
   for (const e of items) {
     daily[Number(e.date.slice(8)) - 1] += e.amount
-    const c = byCat.get(e.category) ?? { id: e.category, amount: 0, count: 0 }
-    c.amount += e.amount
-    c.count += 1
-    byCat.set(e.category, c)
+    add(byCat, categoryOf(e.category), e.amount)
+    const m = PAYMENT_METHODS.find((p) => p.id === e.method)
+    add(byMethod, m ?? { id: 'unknown', label: 'Not recorded', emoji: '❔' }, e.amount)
   }
-  const categories = [...byCat.values()].sort((a, b) => b.amount - a.amount)
+  const ranked = (map: Map<string, BreakdownRow>) => [...map.values()].sort((a, b) => b.amount - a.amount)
   const delta = prevTotal > 0 ? (total - prevTotal) / prevTotal : null
 
   return (
@@ -81,7 +86,12 @@ export function Stats({ month, onMonthChange }: Props) {
 
           <section className="card chart-card">
             <h2 className="card__title">By category</h2>
-            <CategoryBreakdown totals={categories} />
+            <Breakdown rows={ranked(byCat)} />
+          </section>
+
+          <section className="card chart-card">
+            <h2 className="card__title">Paid with</h2>
+            <Breakdown rows={ranked(byMethod)} />
           </section>
         </>
       )}

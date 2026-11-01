@@ -2,10 +2,13 @@ import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { AuthSheet } from '../components/AuthSheet'
-import { CATEGORY } from '../categories'
+import { Icon } from '../components/Icon'
+import { CategoriesSheet } from '../components/CategoriesSheet'
+import { methodLabel } from '../categories'
 import { sanitize } from '../data'
 import { centsToInput, parseAmount } from '../format'
 import { isNative } from '../native'
+import { applyTheme, getPrefs, setPrefs, type Theme } from '../prefs'
 import { useStore, type SyncStatus } from '../store'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -71,6 +74,8 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
   const [budgetText, setBudgetText] = useState(settings.budget ? centsToInput(settings.budget) : '')
   const [canInstall, setCanInstall] = useState(() => deferredPrompt !== null)
   const [authOpen, setAuthOpen] = useState(false)
+  const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [theme, setTheme] = useState<Theme>(() => getPrefs().theme ?? 'system')
   const budgetRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const standalone = isNative || isStandalone()
@@ -103,9 +108,15 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
   const stamp = new Date().toISOString().slice(0, 10)
 
   const exportCsv = () => {
-    const rows = [['date', 'category', 'amount_inr', 'note']]
+    const rows = [['date', 'category', 'amount_inr', 'paid_with', 'note']]
     for (const e of expenses) {
-      rows.push([e.date, CATEGORY[e.category].label, (e.amount / 100).toFixed(2), e.note])
+      rows.push([
+        e.date,
+        store.categoryOf(e.category).label,
+        (e.amount / 100).toFixed(2),
+        e.method ? methodLabel(e.method) : '',
+        e.note,
+      ])
     }
     saveFile(`spendy-${stamp}.csv`, 'text/csv', rows.map((r) => r.map(csvCell).join(',')).join('\n'))
   }
@@ -197,7 +208,7 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
         </>
       )}
 
-      <h2 className="group-title">Budget</h2>
+      <h2 className="group-title">Spending</h2>
       <div className="card settings-group">
         <label className="settings-row">
           <span>Monthly budget (₹)</span>
@@ -213,6 +224,34 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
           />
         </label>
+        <button className="settings-row settings-row--btn settings-row--nav" onClick={() => setCategoriesOpen(true)}>
+          <span className="settings-row__label">Categories</span>
+          <span className="settings-row__value">
+            {store.categories.filter((c) => !store.settings.hidden.includes(c.id)).length} shown
+            <Icon name="right" size={18} />
+          </span>
+        </button>
+      </div>
+
+      <h2 className="group-title">Appearance</h2>
+      <div className="card settings-group settings-group--padded">
+        <div className="segmented" role="radiogroup" aria-label="Theme">
+          {(['system', 'light', 'dark'] as const).map((t) => (
+            <label key={t} className="segmented__option">
+              <input
+                type="radio"
+                name="theme"
+                checked={theme === t}
+                onChange={() => {
+                  setTheme(t)
+                  setPrefs({ theme: t })
+                  applyTheme(t)
+                }}
+              />
+              {t === 'system' ? 'Automatic' : t === 'light' ? 'Light' : 'Dark'}
+            </label>
+          ))}
+        </div>
       </div>
 
       {!standalone && (
@@ -263,6 +302,8 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
           ? 'Your expenses are saved on this device and synced to your account, so they work offline too.'
           : "Right now spendy keeps everything on this device only. Sign in, or back up now and then, so you don't lose it."}
       </p>
+
+      {categoriesOpen && <CategoriesSheet onClose={() => setCategoriesOpen(false)} />}
 
       {authOpen && (
         <AuthSheet

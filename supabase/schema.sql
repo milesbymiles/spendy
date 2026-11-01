@@ -64,3 +64,25 @@ create policy "own settings" on public.settings
 
 revoke all on public.expenses, public.settings from anon;
 grant select, insert, update, delete on public.expenses, public.settings to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- v2: payment methods and custom categories.
+alter table public.expenses add column if not exists method text;
+alter table public.expenses drop constraint if exists expenses_method_check;
+alter table public.expenses add constraint expenses_method_check
+  check (method is null or method in ('upi', 'card', 'cash'));
+
+-- Categories can now be user-defined, so only bound the id's length.
+alter table public.expenses drop constraint if exists expenses_category_check;
+alter table public.expenses add constraint expenses_category_check
+  check (char_length(category) between 1 and 40);
+
+alter table public.settings add column if not exists categories jsonb not null default '[]'::jsonb;
+alter table public.settings drop constraint if exists settings_categories_check;
+alter table public.settings add constraint settings_categories_check
+  check (jsonb_typeof(categories) = 'array' and jsonb_array_length(categories) <= 50);
+
+alter table public.settings add column if not exists hidden_categories text[] not null default '{}';
+alter table public.settings drop constraint if exists settings_hidden_categories_check;
+alter table public.settings add constraint settings_hidden_categories_check
+  check (cardinality(hidden_categories) <= 100);

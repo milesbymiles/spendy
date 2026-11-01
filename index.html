@@ -13,6 +13,13 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>spendy</title>
+    <script>
+      // Apply a saved light/dark override before first paint to avoid a flash.
+      try {
+        var t = JSON.parse(localStorage.getItem('spendy:prefs') || '{}').theme
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

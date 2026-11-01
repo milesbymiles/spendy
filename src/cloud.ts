@@ -1,8 +1,8 @@
 // Everything that talks to Supabase. Loaded lazily so the app opens instantly without it.
 import { createClient, type Session } from '@supabase/supabase-js'
-import type { OutboxEntry } from './data'
+import { sanitizeSettings, type OutboxEntry } from './data'
 import { supabaseConfig } from './supabase-config'
-import type { CategoryId, Expense, Settings } from './types'
+import type { CategoryId, Expense, PaymentMethod, Settings } from './types'
 
 const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
@@ -17,6 +17,7 @@ interface ExpenseRow {
   id: string
   amount: number
   category: CategoryId
+  method: PaymentMethod | null
   note: string
   date: string
   created_at: number
@@ -54,6 +55,7 @@ const toRow = (userId: string, e: OutboxEntry) => ({
   id: e.id,
   amount: e.amount,
   category: e.category,
+  method: e.method ?? null,
   note: e.deleted ? '' : e.note,
   date: e.date,
   created_at: e.createdAt,
@@ -64,6 +66,7 @@ export const fromRow = (r: ExpenseRow): Expense => ({
   id: r.id,
   amount: Number(r.amount),
   category: r.category,
+  ...(r.method ? { method: r.method } : {}),
   note: r.note,
   date: r.date,
   createdAt: Number(r.created_at),
@@ -85,7 +88,7 @@ export async function pullExpenses(cursor: string | null): Promise<ExpenseRow[]>
   for (;;) {
     let q = supabase
       .from('expenses')
-      .select('id,amount,category,note,date,created_at,deleted,updated_at')
+      .select('id,amount,category,method,note,date,created_at,deleted,updated_at')
       .order('updated_at')
       .order('id')
       .range(rows.length, rows.length + 999)
@@ -99,14 +102,27 @@ export async function pullExpenses(cursor: string | null): Promise<ExpenseRow[]>
 
 /** The saved settings row, or null if this account has none yet. */
 export async function pullSettings(): Promise<Settings | null> {
-  const { data, error } = await supabase.from('settings').select('budget').maybeSingle()
+  const { data, error } = await supabase.from('settings').select('budget,categories,hidden_categories').maybeSingle()
   if (error) throw error
-  return data ? { budget: data.budget === null ? null : Number(data.budget) } : null
+  if (!data) return null
+  return sanitizeSettings({
+    budget: data.budget === null ? null : Number(data.budget),
+    categories: data.categories,
+    hidden: data.hidden_categories,
+  })
 }
 
 export async function pushSettings(userId: string, settings: Settings) {
   const { error } = await supabase
     .from('settings')
-    .upsert({ user_id: userId, budget: settings.budget }, { onConflict: 'user_id' })
+    .upsert(
+      {
+        user_id: userId,
+        budget: settings.budget,
+        categories: settings.categories,
+        hidden_categories: settings.hidden,
+      },
+      { onConflict: 'user_id' },
+    )
   if (error) throw error
 }

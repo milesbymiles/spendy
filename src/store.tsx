@@ -1,5 +1,6 @@
 import { Preferences } from '@capacitor/preferences'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { allCategories, categoryLookup } from './categories'
 import type { Account } from './cloud'
 import { byNewest, emptyData, isExpense, sanitize, type Data, type OutboxEntry } from './data'
 import { isNative } from './native'
@@ -307,10 +308,16 @@ function useSpendyState() {
     }))
   }, [])
 
+  const categories = useMemo(() => allCategories(data.settings), [data.settings])
+  const categoryOf = useMemo(() => categoryLookup(data.settings), [data.settings])
+
   return useMemo(
     () => ({
       expenses: data.expenses,
       settings: data.settings,
+      /** Built-in and custom categories, including hidden ones. */
+      categories,
+      categoryOf,
       cloudEnabled,
       authReady,
       account,
@@ -333,6 +340,8 @@ function useSpendyState() {
     [
       data.expenses,
       data.settings,
+      categories,
+      categoryOf,
       data.sync,
       authReady,
       account,

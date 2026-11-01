@@ -1207,3 +1207,16 @@ button:disabled {
 .category-list .link-btn {
   padding: 8px;
 }
+
+.category-list__row--editing {
+  padding-left: 10px;
+}
+
+.category-list__row--editing .category-form__emoji {
+  flex-basis: 48px;
+  min-height: 44px;
+}
+
+.category-list__row--editing .text-input {
+  min-height: 44px;
+}

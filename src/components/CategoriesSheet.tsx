@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isBuiltinCategory, newCategoryId } from '../categories'
 import { useStore } from '../store'
 import { Icon } from './Icon'
@@ -16,30 +16,47 @@ function firstGlyph(s: string) {
 
 export function CategoriesSheet({ onClose }: { onClose: () => void }) {
   const { categories, settings, expenses, updateSettings } = useStore()
-  const [editing, setEditing] = useState<string | null>(null)
   const [emoji, setEmoji] = useState('')
   const [label, setLabel] = useState('')
+  // Editing happens inline in the category's own row.
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editEmoji, setEditEmoji] = useState('')
+  const [editLabel, setEditLabel] = useState('')
+  const editRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) editRef.current?.focus()
+  }, [editing])
 
   const used = useMemo(() => new Set(expenses.map((e) => e.category)), [expenses])
   const visibleCount = categories.filter((c) => !settings.hidden.includes(c.id)).length
-  const atLimit = !editing && settings.categories.length >= MAX_CUSTOM
+  const atLimit = settings.categories.length >= MAX_CUSTOM
 
-  const reset = () => {
-    setEditing(null)
+  const add = () => {
+    const name = label.trim()
+    if (!name || atLimit) return
+    updateSettings({
+      categories: [...settings.categories, { id: newCategoryId(), label: name, emoji: firstGlyph(emoji) || '🏷️' }],
+    })
     setEmoji('')
     setLabel('')
   }
 
-  const submit = () => {
-    const name = label.trim()
-    if (!name || atLimit) return
-    const icon = firstGlyph(emoji) || '🏷️'
+  const startEdit = (id: string, current: { emoji: string; label: string }) => {
+    setEditing(id)
+    setEditEmoji(current.emoji)
+    setEditLabel(current.label)
+  }
+
+  const saveEdit = () => {
+    const name = editLabel.trim()
+    if (!editing || !name) return
     updateSettings({
-      categories: editing
-        ? settings.categories.map((c) => (c.id === editing ? { ...c, label: name, emoji: icon } : c))
-        : [...settings.categories, { id: newCategoryId(), label: name, emoji: icon }],
+      categories: settings.categories.map((c) =>
+        c.id === editing ? { ...c, label: name, emoji: firstGlyph(editEmoji) || c.emoji } : c,
+      ),
     })
-    reset()
+    setEditing(null)
   }
 
   const toggleHidden = (id: string) => {
@@ -53,11 +70,12 @@ export function CategoriesSheet({ onClose }: { onClose: () => void }) {
       categories: settings.categories.filter((c) => c.id !== id),
       hidden: settings.hidden.filter((h) => h !== id),
     })
-    if (editing === id) reset()
+    if (editing === id) setEditing(null)
   }
 
   return (
-    <Sheet title="Categories" onClose={onClose} onSubmit={submit}>
+    // Enter submits the sheet's form: save the row being edited, otherwise add a new category.
+    <Sheet title="Categories" onClose={onClose} onSubmit={editing ? saveEdit : add}>
       <div className="category-form">
         <input
           className="text-input category-form__emoji"
@@ -71,68 +89,93 @@ export function CategoriesSheet({ onClose }: { onClose: () => void }) {
           className="text-input"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder={editing ? 'Category name' : 'New category, e.g. Petrol'}
+          placeholder="New category, e.g. Petrol"
           maxLength={20}
           enterKeyHint="done"
           aria-label="Category name"
         />
-        <button type="submit" className="btn btn--primary category-form__btn" disabled={!label.trim() || atLimit}>
-          {editing ? 'Save' : 'Add'}
+        {/* The form's submit button is the one Enter presses, so it follows whichever field is in use. */}
+        <button
+          type={editing ? 'button' : 'submit'}
+          className="btn btn--primary category-form__btn"
+          onClick={editing ? add : undefined}
+          disabled={!label.trim() || atLimit}
+        >
+          Add
         </button>
       </div>
-      {editing && (
-        <button type="button" className="link-btn" onClick={reset}>
-          Cancel editing
-        </button>
-      )}
 
       <ul className="card category-list">
         {categories.map((c) => {
           const hidden = settings.hidden.includes(c.id)
           const custom = !isBuiltinCategory(c.id)
+          if (editing === c.id) {
+            return (
+              <li key={c.id} className="category-list__row category-list__row--editing">
+                <input
+                  className="text-input category-form__emoji"
+                  value={editEmoji}
+                  onChange={(e) => setEditEmoji(e.target.value)}
+                  maxLength={16}
+                  aria-label="Emoji"
+                />
+                <input
+                  ref={editRef}
+                  className="text-input"
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  maxLength={20}
+                  enterKeyHint="done"
+                  aria-label="Category name"
+                />
+                <button type="submit" className="link-btn" disabled={!editLabel.trim()}>
+                  Save
+                </button>
+                <button type="button" className="icon-btn" onClick={() => setEditing(null)} aria-label="Cancel editing">
+                  <Icon name="close" size={18} />
+                </button>
+              </li>
+            )
+          }
           return (
-            <li key={c.id} className="category-list__row" data-hidden={hidden || undefined}>
-              <span className="emoji-badge" aria-hidden="true">
-                {c.emoji}
-              </span>
-              <span className="category-list__name">
-                {c.label}
-                {hidden && <span className="category-list__tag">Hidden</span>}
-              </span>
-              {custom && (
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={() => {
-                    setEditing(c.id)
-                    setEmoji(c.emoji)
-                    setLabel(c.label)
-                  }}
-                >
-                  Edit
-                </button>
-              )}
-              {custom && !used.has(c.id) && (
-                <button
-                  type="button"
-                  className="icon-btn icon-btn--danger"
-                  onClick={() => remove(c.id)}
-                  aria-label={`Delete ${c.label}`}
-                >
-                  <Icon name="trash" size={18} />
-                </button>
-              )}
+          <li key={c.id} className="category-list__row" data-hidden={hidden || undefined}>
+            <span className="emoji-badge" aria-hidden="true">
+              {c.emoji}
+            </span>
+            <span className="category-list__name">
+              {c.label}
+              {hidden && <span className="category-list__tag">Hidden</span>}
+            </span>
+            {custom && (
               <button
                 type="button"
-                className="icon-btn"
-                onClick={() => toggleHidden(c.id)}
-                disabled={!hidden && visibleCount <= 1}
-                aria-label={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
-                aria-pressed={!hidden}
+                className="link-btn"
+                onClick={() => startEdit(c.id, c)}
               >
-                <Icon name={hidden ? 'eyeOff' : 'eye'} size={20} />
+                Edit
               </button>
-            </li>
+            )}
+            {custom && !used.has(c.id) && (
+              <button
+                type="button"
+                className="icon-btn icon-btn--danger"
+                onClick={() => remove(c.id)}
+                aria-label={`Delete ${c.label}`}
+              >
+                <Icon name="trash" size={18} />
+              </button>
+            )}
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => toggleHidden(c.id)}
+              disabled={!hidden && visibleCount <= 1}
+              aria-label={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
+              aria-pressed={!hidden}
+            >
+              <Icon name={hidden ? 'eyeOff' : 'eye'} size={20} />
+            </button>
+          </li>
           )
         })}
       </ul>

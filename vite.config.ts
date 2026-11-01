@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   // Relative URLs so the same build works at a sub-path (GitHub Pages /spendy/) and in the iOS app.
   base: './',
+  // Shown in Settings so it's easy to tell which build a phone is running.
+  define: { __APP_VERSION__: JSON.stringify(new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '.')) },
   plugins: [
     react(),
     VitePWA({

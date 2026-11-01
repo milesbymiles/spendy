@@ -1185,13 +1185,22 @@ button:disabled {
   border-top: 1px solid var(--line);
 }
 
+.category-list__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  text-align: left;
+}
+
 .category-list__row[data-hidden] .emoji-badge,
 .category-list__row[data-hidden] .category-list__name {
   opacity: 0.45;
 }
 
 .category-list__name {
-  flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -1219,4 +1228,8 @@ button:disabled {
 
 .category-list__row--editing .text-input {
   min-height: 44px;
+}
+
+.footnote--center {
+  text-align: center;
 }

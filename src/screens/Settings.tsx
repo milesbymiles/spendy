@@ -303,6 +303,8 @@ export function Settings({ notify }: { notify: (message: string) => void }) {
           : "Right now spendy keeps everything on this device only. Sign in, or back up now and then, so you don't lose it."}
       </p>
 
+      <p className="footnote footnote--center">spendy · version {__APP_VERSION__}</p>
+
       {categoriesOpen && <CategoriesSheet onClose={() => setCategoriesOpen(false)} />}
 
       {authOpen && (

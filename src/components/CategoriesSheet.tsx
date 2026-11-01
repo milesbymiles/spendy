@@ -109,6 +109,7 @@ export function CategoriesSheet({ onClose }: { onClose: () => void }) {
         {categories.map((c) => {
           const hidden = settings.hidden.includes(c.id)
           const custom = !isBuiltinCategory(c.id)
+
           if (editing === c.id) {
             return (
               <li key={c.id} className="category-list__row category-list__row--editing">
@@ -137,45 +138,55 @@ export function CategoriesSheet({ onClose }: { onClose: () => void }) {
               </li>
             )
           }
+
+          const main = (
+            <>
+              <span className="emoji-badge" aria-hidden="true">
+                {c.emoji}
+              </span>
+              <span className="category-list__name">
+                {c.label}
+                {hidden && <span className="category-list__tag">Hidden</span>}
+              </span>
+            </>
+          )
+
           return (
-          <li key={c.id} className="category-list__row" data-hidden={hidden || undefined}>
-            <span className="emoji-badge" aria-hidden="true">
-              {c.emoji}
-            </span>
-            <span className="category-list__name">
-              {c.label}
-              {hidden && <span className="category-list__tag">Hidden</span>}
-            </span>
-            {custom && (
+            <li key={c.id} className="category-list__row" data-hidden={hidden || undefined}>
+              {/* Custom categories: tapping anywhere on the name starts editing too. */}
+              {custom ? (
+                <button type="button" className="category-list__main" onClick={() => startEdit(c.id, c)}>
+                  {main}
+                </button>
+              ) : (
+                <span className="category-list__main">{main}</span>
+              )}
+              {custom && (
+                <button type="button" className="link-btn" onClick={() => startEdit(c.id, c)}>
+                  Edit
+                </button>
+              )}
+              {custom && !used.has(c.id) && (
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--danger"
+                  onClick={() => remove(c.id)}
+                  aria-label={`Delete ${c.label}`}
+                >
+                  <Icon name="trash" size={18} />
+                </button>
+              )}
               <button
                 type="button"
-                className="link-btn"
-                onClick={() => startEdit(c.id, c)}
+                className="icon-btn"
+                onClick={() => toggleHidden(c.id)}
+                disabled={!hidden && visibleCount <= 1}
+                aria-label={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
+                aria-pressed={!hidden}
               >
-                Edit
+                <Icon name={hidden ? 'eyeOff' : 'eye'} size={20} />
               </button>
-            )}
-            {custom && !used.has(c.id) && (
-              <button
-                type="button"
-                className="icon-btn icon-btn--danger"
-                onClick={() => remove(c.id)}
-                aria-label={`Delete ${c.label}`}
-              >
-                <Icon name="trash" size={18} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={() => toggleHidden(c.id)}
-              disabled={!hidden && visibleCount <= 1}
-              aria-label={hidden ? `Show ${c.label}` : `Hide ${c.label}`}
-              aria-pressed={!hidden}
-            >
-              <Icon name={hidden ? 'eyeOff' : 'eye'} size={20} />
-            </button>
-          </li>
+            </li>
           )
         })}
       </ul>
